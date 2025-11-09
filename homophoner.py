@@ -5,6 +5,9 @@ import numpy as np
 
 from talon import app, Module, Context, actions, settings
 
+from pathlib import Path
+import csv
+
 mod = Module()
 ctx = Context()
 
@@ -22,6 +25,21 @@ mod.setting(
     """,
 )
 
+mod.setting(
+    "homophoner_override_file",
+    type=str,
+    default="homophoner_overrides.csv",
+    desc="""
+    Manual overrides for what the model treats as a correct homophone for a given context word, for example "right read" might return "right" rather than "write", which can be corrected with this file.
+    Can be either an absolute path or a relative path from the root of the talon user directory.
+    """,
+)
+
+# Default overrides as variable: {(input, context): replacement}
+DEFAULT_OVERRIDES: dict[tuple[str, str], str] = {
+    ("right", "read"): "write",
+}
+
 
 @cache
 def load_model(model_name: str | None = None):
@@ -35,7 +53,6 @@ def load_model(model_name: str | None = None):
         # Talon messes with ssl certificates,  meaning you won't always be able to install automatically using talon python.
         # Run subprocess with system python (not talon/the current virtualenv python) to try get around this.
         # Using 'python3' as default system python executable
-        from pathlib import Path
         result = subprocess.run(
             ["python3", str(Path(__file__).parent / "download_model.py"), model_name],
         )
@@ -67,15 +84,18 @@ def find_nearest_homophone(
         print(f"No homophones registered for '{input_word}'")
         return input_word
 
-    model = load_model()
-    #  gensim.utils.simple_preprocess(context, deacc=True, min_len=2, max_len=35)
+    # Use overrides dict: (input, ctx) -> replacement
+    overrides = load_overrides()
+    norm_ctx = context.strip().lower()
+    for cand in [input_word] + candidates:
+        if (cand, norm_ctx)  in overrides:
+            return overrides[(cand, norm_ctx)]
 
-    # Context word(s) must exist in model, otherwise we just return the first candidate
+    model = load_model()
     context_vec = get_context_vector(context, model)
     if context_vec is None:
         return candidates[0]
 
-    # TODO: add a user customizable CSV that lets users specify a particular replacement for a particular context word, in case the model gets it wrong
     scored = []
     for cand in candidates:
         if cand in model:
@@ -162,6 +182,49 @@ def load_cmudict():
     return homophones
 
 
+def load_overrides():
+    """
+    Load manual override CSV and return a dict with keys as (input_homophone, context_words),
+    value as correct_replacement_homophone.
+    If CSV missing, create from DEFAULT_OVERRIDES.
+    """
+    file = get_overrides_file()
+    # Always initialize first if missing
+    if not file.exists():
+        init_overrides()
+    overrides = {}
+    with open(file, newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            input_h = row.get("input_homophone", "").strip()
+            ctx = row.get("context_words", "").strip()
+            replacement = row.get("correct_replacement_homophone", "").strip()
+            if not input_h or not ctx or not replacement:
+                continue
+            overrides[(input_h, ctx)] = replacement
+    return overrides
+
+def write_overrides_csv(path: Path, overrides: dict):
+    """Write overrides dict {(input, context): replacement} to CSV."""
+    with open(path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(["input_homophone", "context_words", "correct_replacement_homophone"])
+        for (inp, ctx), replacement in overrides.items():
+            writer.writerow([inp, ctx, replacement])
+
+def init_overrides():
+    """Create override CSV from DEFAULT_OVERRIDES if file does not exist."""
+    f = get_overrides_file()
+    if not f.exists():
+        write_overrides_csv(f, DEFAULT_OVERRIDES)
+
+def get_overrides_file():
+    user_dir: Path = actions.path.talon_user()
+    file = Path(str(settings.get("user.homophoner_override_file")))
+    if not file.is_absolute():
+        file = user_dir / file
+    return (file).resolve()
+
 @mod.action_class
 class Actions:
     def homophoner_resolve(input: str, context: str) -> str:
@@ -169,6 +232,12 @@ class Actions:
         print(context)
         return find_nearest_homophone(input, context)
 
+    def homophoner_customise() -> None:
+        """Opened the homophoner override file"""
+        init_overrides()
+        actions.user.edit_text_file(get_overrides_file())
+
 # Load model async on talon startup
 import threading
 app.register("ready", lambda: threading.Thread(target=load_model, daemon=True).start())
+app.register("ready", lambda: threading.Thread(target=init_overrides, daemon=True).start())

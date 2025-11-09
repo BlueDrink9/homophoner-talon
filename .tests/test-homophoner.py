@@ -149,6 +149,47 @@ def test_cmudict_matches_hardcoded(word, expected_candidates):
     for expected_word in expected_lower:
         assert expected_word in cmu_candidates, f"{expected_word} not in CMUdict candidates for {word}"
 
+import pytest
+import tempfile
+from pathlib import Path
+from unittest.mock import patch
+
+from homophoner import (
+    init_overrides,
+    load_overrides,
+    find_nearest_homophone,
+    get_candidates,
+)
+
+@pytest.fixture
+def override_file_patch(tmp_path):
+    test_path = tmp_path / "testoverrides.csv"
+    patcher = patch("homophoner.get_overrides_file", return_value=test_path)
+    with patcher:
+        yield test_path
+
+def test_init_override_file(override_file_patch):
+    init_overrides()
+    assert override_file_patch.exists()
+    with open(override_file_patch, "r", encoding="utf-8") as f:
+        contents = f.read()
+    assert "input_homophone,context_words,correct_replacement_homophone" in contents
+
+def test_load_override_file(override_file_patch):
+    test_path = override_file_patch
+    init_overrides()
+    overrides = load_overrides()
+    assert isinstance(overrides, dict)
+    assert ("right", "read") in overrides
+    assert overrides[("right", "read")] == "write"
+
+def test_resolve_override(override_file_patch):
+    test_path = override_file_patch
+    init_overrides()
+    orig = get_candidates
+    with patch("homophoner.get_candidates", side_effect=lambda w: ["right", "rite", "wright"] if w == "right" else orig(w)):
+        result = find_nearest_homophone("right", "read")
+        assert result == "write"
 
 if __name__ == '__main__':
     import pytest
