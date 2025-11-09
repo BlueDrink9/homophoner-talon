@@ -46,7 +46,7 @@ Homophone candidates are pulled from the standard talon-community homophone list
 ## Caveats
 
 * The script tries to load the language model asynchronously win talon loads, but there will be a slight delay when you first start up talon until it is fully functional. (This seems to also include briefly freezing talon on its startup, but doesn't seem to freeze it fully. This usually is only 30 seconds to a minute, but will be slower the very first time when it actually downloads a new model)
-    * If you are using this somewhere you do not have internet access, you can download the gensim model on a different machine and move it to the local folder. See the documentation for gensim to see where this should live.
+    * If you are using this somewhere you do not have internet access, you can download the gensim model on a different machine and move it to the local folder. See the [documentation for gensim](https://radimrehurek.com/gensim/downloader.html) to see where this should live.
 * What the models perceive as a similar context word might differ from what we would intuit. For example, `glove-wiki-gigaword-50` sees read as more similar to right than write, so "right read" will give you "right".
     * To work around this, there is a file that defines manual overrides for certain context words. "right read -> write" is defined already.
 

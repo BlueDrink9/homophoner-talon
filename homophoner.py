@@ -38,6 +38,7 @@ mod.setting(
 # Default overrides as variable: {(input, context): replacement}
 DEFAULT_OVERRIDES: dict[tuple[str, str], str] = {
     ("right", "read"): "write",
+    ("right", "correct"): "right",
 }
 
 
