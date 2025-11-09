@@ -29,7 +29,17 @@ def load_model(model_name: str | None = None):
     print("Homophoner is downloading/loading word model, this might take a while")
     if not model_name:
         model_name: str | None = settings.get("user.homophoner_model_name")
-    return api.load(model_name)
+    try:
+        return api.load(model_name)
+    except ValueError as ex:
+        # Talon messes with ssl certificates,  meaning you won't always be able to install automatically using talon python.
+        # Run subprocess with system python (not talon/the current virtualenv python) to try get around this.
+        # Using 'python3' as default system python executable
+        from pathlib import Path
+        result = subprocess.run(
+            ["python3", str(Path(__file__).parent / "download_model.py"), model_name],
+        )
+        return api.load(model_name)
 
 
 def cosine_similarity(vec1: np.ndarray, vec2: np.ndarray) -> float:
@@ -88,11 +98,6 @@ def get_context_vector(context: str, model):
         return None
     return np.mean(vecs, axis=0)
 
-
-# def get_candidates(input_word: str) -> list[str]:
-#     """Return the list of homophones for a given word, or empty if unknown."""
-#     homophones: list[str] | None = actions.user.homophones_get(input_word)
-#     return homophones
 
 def get_candidates(input_word: str) -> list[str]:
     """
@@ -157,16 +162,12 @@ def load_cmudict():
     return homophones
 
 
-
-
-
 @mod.action_class
 class Actions:
     def homophoner_resolve(input: str, context: str) -> str:
         """Finds the homophone candidate of input that most closely matches the semantic meaning of context"""
         print(context)
         return find_nearest_homophone(input, context)
-
 
 # Load model async on talon startup
 import threading
