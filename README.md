@@ -8,7 +8,17 @@ Install the dependencies (mainly `gensim`, optionally `nltk`) to the talon pip e
 
 ## Usage/how it works
 
-` phony [homophone] [context word]` - Simply say this, where the context word is a word that is related in meaning to the homophone you are trying to select. For example, for the homophone two, you might use number.
+### Inputting a single homophone as a command
+
+`phony [homophone] [context word]` - Simply say this, where the context word is a word that is related in meaning to the homophone you are trying to select. For example, for the homophone two, you might use number.
+
+Assuming you are using community, you can also use word formatters with the homophone, like this:
+`word there as in possession` will output "their", or `proud there as in possession` will output "Their".
+
+### Usage in phrases or dictation mode
+
+This is to be determined once I have liaised with the community maintainers
+
 
 ### Settings and configuration
 
