@@ -2,6 +2,7 @@ from gensim.utils import simple_preprocess
 import gensim.downloader as api
 from functools import cache
 import numpy as np
+import subprocess
 
 from talon import app, Module, Context, actions, settings
 
